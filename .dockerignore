@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.git
+.local
+attached_assets
+nexgen-app.zip
+nexgen-standalone.zip
+npm-debug.log
