@@ -46,7 +46,7 @@ The repository also includes `vercel.json` and `api/index.js` for a free Vercel 
 
 ### Render free web service
 
-The repository includes `render.yaml` for Render's free web service. In Render, choose **New → Blueprint**, connect the GitHub repository, and Render will use the blueprint's build command, health check, and server settings. Enter `GROQ_API_KEY`, `EXA_API_KEY`, and `ADMIN_EMAIL` when Render prompts for the values.
+The repository includes `render.yaml` for Render's free web service. In Render, choose **New → Blueprint**, connect the GitHub repository, and Render will use the blueprint's build command, health check, server settings, and pinned Node 20.19.5 runtime. Enter `GROQ_API_KEY`, `EXA_API_KEY`, and `ADMIN_EMAIL` when Render prompts for the values.
 
 ## Included
 
