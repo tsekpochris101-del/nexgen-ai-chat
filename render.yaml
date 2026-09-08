@@ -9,6 +9,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 20.19.5
       - key: HOST
         value: 0.0.0.0
       - key: GROQ_API_KEY
