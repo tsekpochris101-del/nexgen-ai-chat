@@ -44,6 +44,10 @@ Then open `http://localhost:4000`. The container listens on `0.0.0.0` and is rea
 
 The repository also includes `vercel.json` and `api/index.js` for a free Vercel deployment. Import the project into Vercel, keep the default build settings, and add `GROQ_API_KEY`, `EXA_API_KEY`, and `ADMIN_EMAIL` under the project's environment variables. Vercel will serve the React build and route `/api/*` to the Express function.
 
+### Render free web service
+
+The repository includes `render.yaml` for Render's free web service. In Render, choose **New → Blueprint**, connect the GitHub repository, and Render will use the blueprint's build command, health check, and server settings. Enter `GROQ_API_KEY`, `EXA_API_KEY`, and `ADMIN_EMAIL` when Render prompts for the values.
+
 ## Included
 
 - Responsive premium SaaS-style chat interface
