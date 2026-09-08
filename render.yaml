@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: nexgen-ai-chat
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: GROQ_API_KEY
+        sync: false
+      - key: EXA_API_KEY
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
