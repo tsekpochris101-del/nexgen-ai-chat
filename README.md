@@ -29,7 +29,7 @@ npm run build
 NODE_ENV=production npm start
 ```
 
-Open `http://localhost:4000`. Express serves both the built React frontend and the `/api` backend from the same origin, so the app does not depend on Replit or a separate frontend server. Set `PORT` and `HOST` when your hosting provider supplies them.
+Open `http://localhost:4000`. Express serves both the built React frontend and the `/api` backend from the same origin, so the app does not need a separate frontend server. Set `PORT` and `HOST` when your hosting provider supplies them.
 
 ### Docker
 
@@ -64,19 +64,19 @@ The repository includes `render.yaml` for Render's free web service. In Render, 
 - Admin operations workspace with maintenance requests, change requests, integration health, and future-feature roadmap
 - Theme toggle, mobile navigation drawer, keyboard shortcuts, and reduced-motion support
 
-## Important starter limitations
+## Important limitations
 
 The current store is intentionally in-memory for a runnable scaffold. Restarting the server clears users, sessions, conversations, and messages. Replace the maps in `server/index.js` with a relational database before production, and add migrations, persistent session storage, email verification, password reset, CSRF strategy, rate limiting, file upload validation, and streaming cancellation.
 
 The live search feature uses Exa directly through `EXA_API_KEY`, keeping the credential server-side. Search can be enabled with the **Web** button, and current-looking questions also trigger search automatically. Without an Exa key, the app still runs but returns answers without live web sources.
 
-## Deploy outside Replit
+## Deploy to an external host
 
 1. Upload the project or build the Docker image on the host of your choice.
 2. Set the host's public `PORT` if it provides one; the server already binds to `HOST=0.0.0.0`.
 3. Add `GROQ_API_KEY` and `EXA_API_KEY` as server-side secrets.
 4. Set `ADMIN_EMAIL` if the admin dashboard is needed.
-5. Use the host's generated HTTPS URL. No Replit connector, domain, or runtime secret is required.
+5. Use the host's generated HTTPS URL.
 
 The included `Dockerfile` and Vercel configuration are portable deployment paths. The app currently stores users, sessions, conversations, and messages in memory, so attach a persistent database before treating an external deployment as production data storage.
 
