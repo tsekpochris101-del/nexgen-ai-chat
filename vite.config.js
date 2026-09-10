@@ -8,9 +8,7 @@ export default defineConfig({
     port: 5173,
     allowedHosts: [
       "localhost",
-      "127.0.0.1",
-      ...(process.env.REPLIT_DEV_DOMAIN ? [process.env.REPLIT_DEV_DOMAIN] : []),
-      ...(process.env.REPLIT_DOMAINS ? process.env.REPLIT_DOMAINS.split(",").map((domain) => domain.trim()).filter(Boolean) : [])
+      "127.0.0.1"
     ],
     proxy: {
       "/api": "http://localhost:4000"
