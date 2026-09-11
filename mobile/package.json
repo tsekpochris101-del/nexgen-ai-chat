@@ -1,0 +1,16 @@
+{
+  "name": "nexgen-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android"
+  },
+  "dependencies": {
+    "expo": "~52.0.0",
+    "react": "18.3.1",
+    "react-native": "0.76.5",
+    "react-native-webview": "13.12.5"
+  }
+}
