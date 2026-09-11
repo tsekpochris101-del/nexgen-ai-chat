@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "nexGen",
+    "slug": "nexgen-ai-chat",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "com.tsekpochris.nexgen",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#080b12"
+      }
+    },
+    "plugins": [
+      "react-native-webview"
+    ]
+  }
+}
