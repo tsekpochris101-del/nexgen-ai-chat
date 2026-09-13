@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://nexgen-ai-chat-ctkdev.vercel.app/</loc><priority>1.0</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://nexgen-ai-chat-ctkdev.vercel.app/ai-companion/</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://nexgen-ai-chat-ctkdev.vercel.app/ai-chat-assistant/</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://nexgen-ai-chat-ctkdev.vercel.app/personal-ai-assistant/</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+</urlset>
