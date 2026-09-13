@@ -60,11 +60,18 @@ const messages = new Map();
 const maintenanceRequests = [];
 const changeRequests = [];
 const roadmap = [
-  { id: "roadmap_1", title: "Persistent conversation storage", category: "Reliability", priority: "High", status: "Planned", description: "Move users, sessions, conversations, and messages into a managed database." },
+  { id: "roadmap_1", title: "Persistent conversation storage", category: "Reliability", priority: "High", status: "Done", description: "Users, sessions, conversations, and messages now persist in managed Neon Postgres." },
   { id: "roadmap_2", title: "Streaming responses", category: "AI experience", priority: "High", status: "Exploring", description: "Show model output as it arrives with cancellation and retry controls." },
   { id: "roadmap_3", title: "Team workspaces", category: "Collaboration", priority: "Medium", status: "Planned", description: "Shared spaces, roles, invitations, and organization-level controls." },
   { id: "roadmap_4", title: "Usage analytics", category: "Operations", priority: "Medium", status: "Exploring", description: "Track response latency, model usage, search usage, and product adoption." },
-  { id: "roadmap_5", title: "Files and knowledge bases", category: "AI experience", priority: "Low", status: "Idea", description: "Attach documents and let users create private, searchable knowledge spaces." }
+  { id: "roadmap_5", title: "File uploads and knowledge bases", category: "AI experience", priority: "High", status: "Planned", description: "Upload PDFs, documents, and images; extract text, cite sources, and build private searchable knowledge spaces." },
+  { id: "roadmap_6", title: "Voice chat and hands-free mode", category: "AI experience", priority: "High", status: "Exploring", description: "Talk with nexGen using speech input and spoken replies, with interruption handling and adjustable voice settings." },
+  { id: "roadmap_7", title: "Camera and image understanding", category: "Multimodal", priority: "High", status: "Idea", description: "Capture an image with a camera or upload one for visual analysis, OCR, troubleshooting, and creative feedback." },
+  { id: "roadmap_8", title: "Conversation export and sharing", category: "Collaboration", priority: "Medium", status: "Planned", description: "Share selected conversations securely and export them as Markdown, PDF, or a clean document." },
+  { id: "roadmap_9", title: "Model picker and response controls", category: "AI experience", priority: "Medium", status: "Idea", description: "Let users choose the model and tune tone, length, creativity, and citation preferences." },
+  { id: "roadmap_10", title: "Smart reminders and follow-ups", category: "Productivity", priority: "Medium", status: "Idea", description: "Turn useful conversations into reminders, tasks, and scheduled follow-ups." },
+  { id: "roadmap_11", title: "Privacy center and data export", category: "Trust and safety", priority: "High", status: "Planned", description: "Give users clear controls to download, delete, and manage their account and conversation data." },
+  { id: "roadmap_12", title: "Mobile companion app", category: "Platform", priority: "Medium", status: "Idea", description: "Bring voice, camera capture, chat history, and push notifications to iOS and Android." }
 ];
 
 const json = (res, status, body) => res.status(status).json(body);
