@@ -3,8 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f7f8fc" />
+    <meta name="theme-color" content="#0b1020" />
     <meta name="application-name" content="nexGen" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <meta name="description" content="Meet nexGen, your intelligent AI companion for thoughtful conversations, answers, ideas, and everyday productivity." />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="google-site-verification" content="NfmRQnBcPGz_WJLHXxp8ZtuO3r3ppQkCRsciEk-tnjQ" />
@@ -25,5 +30,6 @@
     <div id="root"></div>
     <noscript><main><h1>Your intelligent AI companion</h1><p>nexGen is an AI chat assistant for thoughtful conversations, quick answers, writing help, brainstorming, learning, and everyday productivity.</p><nav aria-label="nexGen resources"><a href="/ai-companion/">AI companion</a> <a href="/ai-chat-assistant/">AI chat assistant</a> <a href="/personal-ai-assistant/">Personal AI assistant</a></nav></main></noscript>
     <script type="module" src="/src/main.jsx"></script>
+    <script src="/register-service-worker.js" defer></script>
   </body>
 </html>

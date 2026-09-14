@@ -51,6 +51,8 @@ The repository includes `render.yaml` for Render's free web service. In Render, 
 ## Included
 
 - Responsive premium SaaS-style chat interface
+- Installable PWA metadata with offline shell caching and Android Trusted Web Activity handoff
+- App icons and Digital Asset Links template for Google Play packaging
 - Signup, login, logout, and HttpOnly session cookies
 - Server-side password hashing with Node `scrypt`
 - Conversation creation, selection, title generation fallback, search, and deletion
@@ -79,6 +81,23 @@ The live search feature uses Exa directly through `EXA_API_KEY`, keeping the cre
 5. Use the host's generated HTTPS URL.
 
 The included `Dockerfile` and Vercel configuration are portable deployment paths. The app currently stores users, sessions, conversations, and messages in memory, so attach a persistent database before treating an external deployment as production data storage.
+
+## Google Play / PWABuilder
+
+The site now includes the files PWABuilder needs to detect and package the
+existing Vercel site without moving the app to another host:
+
+- `/manifest.webmanifest`
+- `/service-worker.js`
+- `/register-service-worker.js`
+- `/.well-known/assetlinks.json`
+- `/icons/icon-192.png`
+- `/icons/icon-512.png`
+
+Use `com.nexgen.aichat` as the Android package name. Before uploading the
+generated AAB, replace the placeholder fingerprint in
+`public/.well-known/assetlinks.json` with the SHA-256 fingerprint shown under
+Google Play App Signing. The app's source URL remains the existing Vercel URL.
 
 ## API shape
 
