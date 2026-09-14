@@ -111,7 +111,7 @@ function AuthScreen({ onAuthenticated }) {
             {error && <div className="form-error" role="alert">{error}</div>}
             <button className="button primary full" disabled={busy}>{busy ? "One moment…" : mode === "login" ? "Enter nexGen" : "Create your account"}<ArrowUp size={17} /></button>
           </form>
-          <p className="form-footnote">By continuing, you agree to use nexGen responsibly.</p>
+          <p className="form-footnote">By continuing, you agree to use nexGen responsibly. <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
         </div>
       </section>
     </main>
@@ -149,7 +149,7 @@ function Avatar({ assistant = false, name = "" }) {
   return assistant ? <span className="avatar ai-avatar"><span /><span /><span /></span> : <span className="avatar user-avatar">{name.slice(0, 1).toUpperCase()}</span>;
 }
 
-function Sidebar({ user, conversations, activeId, query, setQuery, onNew, onSelect, onDelete, onLogout, onAdmin, open, onClose }) {
+function Sidebar({ user, conversations, activeId, query, setQuery, onNew, onSelect, onDelete, onLogout, onDeleteAccount, onAdmin, open, onClose }) {
   return (
     <aside className={`sidebar ${open ? "open" : ""}`}>
       <div className="sidebar-top">
@@ -169,6 +169,8 @@ function Sidebar({ user, conversations, activeId, query, setQuery, onNew, onSele
       <div className="sidebar-bottom">
         {user.role === "admin" && <button className="sidebar-action admin-action" onClick={onAdmin}><BarChart3 size={17} /> Admin dashboard</button>}
         <button className="sidebar-action"><Settings size={17} /> Settings</button>
+        <button className="sidebar-action" onClick={onDeleteAccount}><Trash2 size={17} /> Delete account</button>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", padding: "4px 4px 10px", fontSize: "11px" }}><a href="/privacy" style={{ color: "inherit" }}>Privacy</a><a href="/terms" style={{ color: "inherit" }}>Terms</a><a href="/delete-account" style={{ color: "inherit" }}>Account deletion</a></div>
         <div className="account-row"><span className="avatar user-avatar">{user.name.slice(0, 1).toUpperCase()}</span><div><strong>{user.name}</strong><small>{user.email}</small></div><button className="icon-button" onClick={onLogout} aria-label="Log out"><LogOut size={16} /></button></div>
       </div>
     </aside>
@@ -350,12 +352,22 @@ function App() {
   };
 
   const logout = async () => { await api("/api/auth/logout", { method: "POST" }); setUser(null); setConversations([]); setActiveConversation(null); setActiveId(null); };
+
+  const deleteAccount = async () => {
+    if (!window.confirm("Delete your nexGen account and every conversation? This cannot be undone.")) return;
+    try {
+      await api("/api/auth/account", { method: "DELETE" });
+      setUser(null); setConversations([]); setActiveConversation(null); setActiveId(null);
+    } catch (error) {
+      setToast(error.message); setTimeout(() => setToast(""), 3200);
+    }
+  };
   const displayName = useMemo(() => user?.name?.split(" ")[0] || "there", [user]);
   if (checkingSession) return <div className="loading-screen"><Logo /><span className="pulse-dot" /></div>;
   if (!user) return <AuthScreen onAuthenticated={setUser} />;
 
   return <div className="app-shell">
-    <Sidebar user={user} conversations={conversations} activeId={activeId} query={query} setQuery={setQuery} onNew={() => { setActiveView("chat"); createConversation(); }} onSelect={(id) => { setActiveView("chat"); selectConversation(id); }} onDelete={deleteConversation} onLogout={logout} onAdmin={() => { setActiveView("admin"); setMobileOpen(false); }} open={mobileOpen} onClose={() => setMobileOpen(false)} />
+    <Sidebar user={user} conversations={conversations} activeId={activeId} query={query} setQuery={setQuery} onNew={() => { setActiveView("chat"); createConversation(); }} onSelect={(id) => { setActiveView("chat"); selectConversation(id); }} onDelete={deleteConversation} onLogout={logout} onDeleteAccount={deleteAccount} onAdmin={() => { setActiveView("admin"); setMobileOpen(false); }} open={mobileOpen} onClose={() => setMobileOpen(false)} />
     {mobileOpen && <button className="scrim" onClick={() => setMobileOpen(false)} aria-label="Close navigation" />}
     <main className="chat-shell">
       {activeView === "admin" ? <AdminDashboard onBack={() => setActiveView("chat")} /> : <>
