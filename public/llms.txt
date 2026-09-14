@@ -3,12 +3,12 @@
 > nexGen is an intelligent AI chat companion for thoughtful conversations, answers, writing, brainstorming, learning, and everyday productivity.
 
 ## Primary website
-- https://nexgen-ai-chat-ctkdev.vercel.app/
+- https://nexgen-ai-chat.vercel.app/
 
 ## Public pages
-- AI companion: https://nexgen-ai-chat-ctkdev.vercel.app/ai-companion/
-- AI chat assistant: https://nexgen-ai-chat-ctkdev.vercel.app/ai-chat-assistant/
-- Personal AI assistant: https://nexgen-ai-chat-ctkdev.vercel.app/personal-ai-assistant/
+- AI companion: https://nexgen-ai-chat.vercel.app/ai-companion/
+- AI chat assistant: https://nexgen-ai-chat.vercel.app/ai-chat-assistant/
+- Personal AI assistant: https://nexgen-ai-chat.vercel.app/personal-ai-assistant/
 
 ## Capabilities
 - Ask questions and get plain-language explanations

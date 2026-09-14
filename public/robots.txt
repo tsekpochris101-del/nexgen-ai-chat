@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://nexgen-ai-chat-ctkdev.vercel.app/sitemap.xml
+Sitemap: https://nexgen-ai-chat.vercel.app/sitemap.xml
