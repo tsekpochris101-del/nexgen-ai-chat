@@ -372,6 +372,30 @@ app.post("/api/auth/logout", async (req, res) => {
   catch (error) { console.error("Logout failed:", error.message); return json(res, 503, { error: { code: "AUTH_STORAGE_UNAVAILABLE", message: "Logout is temporarily unavailable." } }); }
 });
 
+app.delete("/api/auth/account", requireAuth, async (req, res) => {
+  try {
+    const token = getSessionToken(req);
+    if (pool) {
+      await ensureSchema();
+      await pool.query("DELETE FROM users WHERE id = $1", [req.user.id]);
+    } else {
+      for (const [sessionToken, session] of sessions.entries()) if (session.userId === req.user.id) sessions.delete(sessionToken);
+      for (const [conversationId, conversation] of conversations.entries()) {
+        if (conversation.userId === req.user.id) {
+          conversation.messageIds.forEach((messageId) => messages.delete(messageId));
+          conversations.delete(conversationId);
+        }
+      }
+      users.delete(req.user.email);
+    }
+    await clearSession(res, token);
+    return json(res, 200, { ok: true });
+  } catch (error) {
+    console.error("Account deletion failed:", error.message);
+    return json(res, 503, { error: { code: "ACCOUNT_DELETION_UNAVAILABLE", message: "Account deletion is temporarily unavailable." } });
+  }
+});
+
 app.get("/api/auth/session", async (req, res) => {
   try {
     const token = getSessionToken(req);
