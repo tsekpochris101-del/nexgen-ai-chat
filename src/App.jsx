@@ -136,6 +136,9 @@ function MarkdownMessage({ content }) {
           if (inline) return <code className="inline-code" {...props}>{children}</code>;
           return <div className="code-block"><div className="code-head"><span>{language}</span><button onClick={() => copy(value)}>{copied === value ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}</button></div><pre><code>{value}</code></pre></div>;
         },
+        table({ children }) {
+          return <div className="markdown-table"><table>{children}</table></div>;
+        },
         a({ children, href, ...props }) {
           const safeHref = /^https?:\/\//i.test(href || "") ? href : undefined;
           return <a href={safeHref} target="_blank" rel="noreferrer" {...props}>{children}</a>;
