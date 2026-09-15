@@ -9,6 +9,9 @@ import {
   CheckCircle2,
   ChevronDown,
   Copy,
+  Download,
+  FileDown,
+  Image as ImageIcon,
   Feather,
   FileText,
   GitBranch,
@@ -50,6 +53,86 @@ async function api(path, options = {}) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error?.message || "Something went wrong.");
   return payload;
+}
+
+function safeFileName(value, fallback) {
+  const normalized = String(value || fallback).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return normalized || fallback;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function pdfEscape(value) {
+  return String(value || "").replace(/[^\x20-\x7E]/g, "?").replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+}
+
+function wrapPdfText(value, width = 92) {
+  return String(value || "").split(/\r?\n/).flatMap((line) => {
+    if (!line.trim()) return [""];
+    const words = line.trim().split(/\s+/);
+    const wrapped = [];
+    let current = "";
+    words.forEach((word) => {
+      if (!current) current = word;
+      else if ((current + " " + word).length <= width) current += " " + word;
+      else { wrapped.push(current); current = word; }
+    });
+    if (current) wrapped.push(current);
+    return wrapped;
+  });
+}
+
+function buildConversationPdf(title, messages) {
+  const lines = ["nexGen conversation", title || "Untitled conversation", new Date().toLocaleString(), ""];
+  messages.forEach((message) => {
+    lines.push((message.role === "assistant" ? "nexGen" : "You") + ":");
+    lines.push(...wrapPdfText(message.content));
+    lines.push("");
+  });
+  const chunks = [];
+  for (let index = 0; index < lines.length; index += 46) chunks.push(lines.slice(index, index + 46));
+  const pageRefs = chunks.map((_, index) => String(4 + index * 2) + " 0 R");
+  const objects = [
+    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
+    "2 0 obj << /Type /Pages /Kids [" + pageRefs.join(" ") + "] /Count " + chunks.length + " >> endobj",
+    "3 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj"
+  ];
+  chunks.forEach((chunk, index) => {
+    const contentId = 4 + index * 2;
+    const pageId = contentId + 1;
+    const stream = ["BT", "/F1 16 Tf", "50 790 Td"];
+    chunk.forEach((line, lineIndex) => {
+      stream.push("(" + pdfEscape(line) + ") Tj");
+      if (lineIndex === 0) stream.push("/F1 10 Tf");
+      else stream.push("0 -15 Td");
+    });
+    stream.push("ET");
+    const content = stream.join("\n");
+    objects.push(contentId + " 0 obj << /Length " + content.length + " >> stream\n" + content + "\nendstream\nendobj");
+    objects.push(pageId + " 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents " + contentId + " 0 R >> endobj");
+  });
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object) => { offsets.push(pdf.length); pdf += object + "\\n"; });
+  const xrefOffset = pdf.length;
+  pdf += "xref\n0 " + (objects.length + 1) + "\n0000000000 65535 f \n";
+  for (let index = 1; index < offsets.length; index += 1) pdf += String(offsets[index]).padStart(10, "0") + " 00000 n \n";
+  pdf += "trailer\n<< /Size " + (objects.length + 1) + " /Root 1 0 R >>\nstartxref\n" + xrefOffset + "\n%%EOF";
+  return new Blob([pdf], { type: "application/pdf" });
+}
+
+function CreativeResult({ imageUrl, prompt, loading, error, onClose, onDownload }) {
+  if (!imageUrl && !loading && !error) return null;
+  return <section className="creative-result"><div className="creative-card"><div className="creative-heading"><div><span className="eyebrow">Free AI image</span><strong>{loading ? "Creating your image…" : error ? "Image generation needs a retry" : "Your generated image"}</strong><small>{prompt}</small></div><button className="icon-button" onClick={onClose} aria-label="Close generated image"><X size={17} /></button></div>{loading ? <div className="creative-loading"><span className="pulse-dot" /><span>Generating a free image from your prompt…</span></div> : error ? <p className="creative-error">{error}</p> : <><img className="creative-image" src={imageUrl} alt={prompt} /><div className="creative-actions"><button className="button outline-button" onClick={onDownload}><Download size={15} /> Download PNG</button><small>No watermark, logo, or signature is added.</small></div></>}</div></section>;
 }
 
 function Logo({ compact = false }) {
@@ -272,11 +355,11 @@ function AdminDashboard({ onBack }) {
   </div>;
 }
 
-function Composer({ value, setValue, onSend, generating, onStop, webSearch, setWebSearch }) {
+function Composer({ value, setValue, onSend, generating, onStop, webSearch, setWebSearch, onGenerateImage, onDownloadPdf, hasConversation }) {
   const ref = useRef(null);
-  useEffect(() => { if (ref.current) { ref.current.style.height = "auto"; ref.current.style.height = `${Math.min(ref.current.scrollHeight, 150)}px`; } }, [value]);
+  useEffect(() => { if (ref.current) { ref.current.style.height = "auto"; ref.current.style.height = Math.min(ref.current.scrollHeight, 150) + "px"; } }, [value]);
   const submit = (event) => { event.preventDefault(); if (!generating && value.trim()) onSend(); };
-  return <form className="composer" onSubmit={submit}><textarea ref={ref} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(e); } }} placeholder="Message nexGen…" rows={1} aria-label="Message nexGen" /><div className="composer-actions"><div className="composer-left"><span>Shift + Enter for a new line</span><button type="button" className={`web-toggle ${webSearch ? "active" : ""}`} onClick={() => setWebSearch(!webSearch)} aria-pressed={webSearch}><Search size={13} /> Web</button></div><div><button type="button" className="icon-button composer-tool" aria-label="Attach a file"><Plus size={18} /></button>{generating ? <button type="button" className="send-button stop" onClick={onStop} aria-label="Stop generating"><Square size={16} fill="currentColor" /></button> : <button className="send-button" disabled={!value.trim()} aria-label="Send message"><ArrowUp size={17} /></button>}</div></div></form>;
+  return <form className="composer" onSubmit={submit}><textarea ref={ref} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(e); } }} placeholder="Message nexGen…" rows={1} aria-label="Message nexGen" /><div className="composer-actions"><div className="composer-left"><span>Shift + Enter for a new line</span><button type="button" className="web-toggle" onClick={onGenerateImage} disabled={generating || !value.trim()} title="Generate a free AI image from your prompt"><ImageIcon size={13} /> Image</button><button type="button" className="web-toggle" onClick={onDownloadPdf} disabled={generating || !hasConversation} title="Download this conversation as a PDF"><FileDown size={13} /> PDF</button><button type="button" className={"web-toggle " + (webSearch ? "active" : "")} onClick={() => setWebSearch(!webSearch)} aria-pressed={webSearch}><Search size={13} /> Web</button></div><div><button type="button" className="icon-button composer-tool" aria-label="Attach a file"><Plus size={18} /></button>{generating ? <button type="button" className="send-button stop" onClick={onStop} aria-label="Stop generating"><Square size={16} fill="currentColor" /></button> : <button className="send-button" disabled={!value.trim()} aria-label="Send message"><ArrowUp size={17} /></button>}</div></div></form>;
 }
 
 function App() {
@@ -292,6 +375,10 @@ function App() {
   const [activeView, setActiveView] = useState("chat");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [imageLoading, setImageLoading] = useState(false);
+  const [imageError, setImageError] = useState("");
 
   const loadConversations = async (search = query) => {
     const data = await api(`/api/conversations${search ? `?q=${encodeURIComponent(search)}` : ""}`);
@@ -354,6 +441,40 @@ function App() {
     } finally { setGenerating(false); }
   };
 
+  const generateImage = () => {
+    const prompt = draft.trim();
+    if (!prompt) { setToast("Write an image description first."); setTimeout(() => setToast(""), 3200); return; }
+    setImagePrompt(prompt);
+    setImageUrl("");
+    setImageError("");
+    setImageLoading(true);
+    const imageUrlToLoad = "https://image.pollinations.ai/prompt/" + encodeURIComponent("Create a polished, safe, high-quality image based on this description. Do not add any watermark, logo, signature, or text unless explicitly requested: " + prompt) + "?width=1024&height=1024&nologo=true&safe=true";
+    const preview = new window.Image();
+    preview.onload = () => { setImageUrl(imageUrlToLoad); setImageLoading(false); };
+    preview.onerror = () => { setImageError("The free image service did not respond. Try the same prompt again."); setImageLoading(false); };
+    preview.src = imageUrlToLoad;
+  };
+
+  const downloadImage = async () => {
+    if (!imageUrl) return;
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error("Image download failed");
+      downloadBlob(await response.blob(), safeFileName(imagePrompt, "nexgen-image") + ".png");
+    } catch (_error) {
+      window.open(imageUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const downloadPdf = () => {
+    if (!activeConversation?.messages?.length) { setToast("Start a conversation before downloading a PDF."); setTimeout(() => setToast(""), 3200); return; }
+    downloadBlob(buildConversationPdf(activeConversation.title, activeConversation.messages), safeFileName(activeConversation.title, "nexgen-conversation") + ".pdf");
+    setToast("PDF downloaded.");
+    setTimeout(() => setToast(""), 2200);
+  };
+
+  const closeImage = () => { setImageUrl(""); setImagePrompt(""); setImageLoading(false); setImageError(""); };
+
   const logout = async () => { await api("/api/auth/logout", { method: "POST" }); setUser(null); setConversations([]); setActiveConversation(null); setActiveId(null); };
 
   const deleteAccount = async () => {
@@ -377,8 +498,9 @@ function App() {
         <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><div className="mobile-logo"><Logo compact /></div><div className="conversation-heading">{activeConversation ? <><span className="eyebrow">Conversation</span><strong>{activeConversation.title}</strong></> : <><span className="eyebrow">Monday, September 07</span><strong>Good afternoon, {displayName}</strong></>}</div><div className="topbar-actions"><button className="theme-button icon-button" aria-label="Toggle theme" onClick={() => document.body.classList.toggle("dark")}><Sun size={17} /><Moon size={17} /></button><button className="avatar user-avatar small" aria-label="Account">{user.name.slice(0, 1).toUpperCase()}</button></div></header>
         <section className="conversation-view">
           {!activeConversation || activeConversation.messages?.length === 0 ? <EmptyState onPrompt={(prompt) => { setDraft(prompt); }} /> : <div className="message-list">{activeConversation.messages.map((message) => <article className={`message-row ${message.role}`} key={message.id}><Avatar assistant={message.role === "assistant"} name={user.name} /><div className="message-content"><div className="message-meta"><strong>{message.role === "assistant" ? "nexGen" : user.name}</strong><time>{new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></div>{message.role === "assistant" ? <MarkdownMessage content={message.content} /> : <p>{message.content}</p>}</div></article>)}{generating && <article className="message-row assistant"><Avatar assistant /><div className="message-content"><div className="message-meta"><strong>nexGen</strong></div><div className="thinking"><span /><span /><span /></div></div></article>}</div>}
+        <CreativeResult imageUrl={imageUrl} prompt={imagePrompt} loading={imageLoading} error={imageError} onClose={closeImage} onDownload={downloadImage} />
         </section>
-        <div className="composer-wrap"><Composer value={draft} setValue={setDraft} onSend={() => sendMessage()} generating={generating} onStop={() => setGenerating(false)} webSearch={webSearch} setWebSearch={setWebSearch} /><p className="disclaimer">nexGen can make mistakes. Check important information.</p></div>
+        <div className="composer-wrap"><Composer value={draft} setValue={setDraft} onSend={() => sendMessage()} generating={generating} onStop={() => setGenerating(false)} webSearch={webSearch} setWebSearch={setWebSearch} onGenerateImage={generateImage} onDownloadPdf={downloadPdf} hasConversation={Boolean(activeConversation?.messages?.length)} /><p className="disclaimer">nexGen can make mistakes. Check important information.</p></div>
       </>}
     </main>
     {toast && <div className="toast" role="alert">{toast}<button onClick={() => setToast("")}><X size={15} /></button></div>}
