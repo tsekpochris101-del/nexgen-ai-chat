@@ -3,9 +3,9 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.nexgen.aichat",
+      "package_name": "app.vercel.nexgen_ai_chat_ctkdev.twa",
       "sha256_cert_fingerprints": [
-        "REPLACE_WITH_YOUR_PLAY_APP_SIGNING_SHA256_FINGERPRINT"
+        "62:3F:25:FD:F1:07:73:60:49:93:89:7B:3F:33:19:2A:D9:14:CB:FF:4C:A5:35:6B:11:3A:43:11:41:34:8A:84"
       ]
     }
   }
