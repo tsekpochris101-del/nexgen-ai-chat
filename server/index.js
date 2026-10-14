@@ -250,7 +250,7 @@ function shouldSearchWeb(content, requested) {
   return /\b(latest|current|today|now|recent|news|weather|price|prices|stock|stocks|score|scores|2026|this week|look up|search the web|what happened)\b/i.test(content);
 }
 
-async function searchWeb(query) {
+async function searchWeb(query, signal) {
   try {
     const requestBody = {
       query,
@@ -262,7 +262,8 @@ async function searchWeb(query) {
     const response = await fetch("https://api.exa.ai/search", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": process.env.EXA_API_KEY },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal
       });
     if (!response.ok) throw new Error(`Exa returned ${response.status}`);
     const payload = await response.json();
@@ -273,6 +274,7 @@ async function searchWeb(query) {
       highlights: result.highlights || []
     })).filter((result) => result.url);
   } catch (error) {
+    if (signal?.aborted) throw error;
     console.error("Web search failed:", error.message);
     return [];
   }
@@ -288,7 +290,7 @@ function sourceLinks(sources) {
   return `\n\n**Sources**\n${sources.map((source, index) => `- [${index + 1}. ${source.title}](${source.url})`).join("\n")}`;
 }
 
-async function generateAssistantReply(history, sources = []) {
+async function generateAssistantReply(history, sources = [], signal) {
   const system = {
     role: "system",
     content: "You are nexGen, a fast, thoughtful general-purpose AI assistant created by Tsekpo Chris, a self-taught programmer. If asked who created you, who made you, or who your creator is, say clearly that you were created by Tsekpo Chris, a self-taught programmer.\n\nWrite like a clear, patient human tutor: warm, direct, natural, and easy to follow. Start with the answer, then explain only what helps. Use plain language, short paragraphs, and Markdown headings, bullets, or numbered steps when they genuinely improve readability. Do not sound robotic, overly formal, or like a textbook. Do not add unnecessary preamble or repeat the question.\n\nFor mathematics, chemistry, physics, and other formulas:\n- Put each equation or formula on its own line and explain the symbols in plain language.\n- Prefer simple readable notation that works without special math rendering, such as v = d/t, x², m/s², and 2H₂ + O₂ → 2H₂O. Do not expose escaped LaTeX, raw JSON, or formatting artifacts.\n- For a chemical equation, show the unbalanced form, adjust coefficients step by step when useful, then show the final balanced equation and briefly check that the atoms match. Never change subscripts to balance an equation; change coefficients only.\n- Keep units beside values, use familiar number formatting, avoid unnecessary decimal places, and state assumptions or rounding when they matter.\n\nFor explanations aimed at students, use a small example where helpful and make each step actionable. For tables, use short column headings, one idea per cell, and readable values instead of long paragraphs. Use code blocks only for actual code or text the user needs to copy. Preserve the user's requested language, units, and level of detail."
@@ -314,7 +316,8 @@ async function generateAssistantReply(history, sources = []) {
       messages: [system, ...(searchInstruction ? [searchInstruction] : []), ...history.slice(-20).map(({ role, content }) => ({ role, content }))],
       temperature: 0.6,
       max_tokens: 1600
-    })
+    }),
+    signal
   });
   if (!response.ok) throw new Error(`AI provider returned ${response.status}`);
   const payload = await response.json();
@@ -327,6 +330,88 @@ app.get("/api/health", async (_req, res) => {
     return json(res, 200, { ok: true, providerConfigured: Boolean(process.env.GROQ_API_KEY), searchProviderConfigured: Boolean(process.env.EXA_API_KEY), databaseConfigured: Boolean(pool) });
   } catch (error) {
     return json(res, 503, { ok: false, providerConfigured: Boolean(process.env.GROQ_API_KEY), searchProviderConfigured: Boolean(process.env.EXA_API_KEY), databaseConfigured: true, databaseReady: false });
+  }
+});
+
+app.get("/api/images/search", requireAuth, async (req, res) => {
+  const query = cleanText(req.query.q, 120);
+  if (query.length < 2) {
+    return json(res, 400, { error: { code: "VALIDATION_ERROR", message: "Enter at least two characters to search for images." } });
+  }
+
+  try {
+    const params = new URLSearchParams({
+      action: "query",
+      format: "json",
+      generator: "search",
+      gsrsearch: query,
+      gsrnamespace: "6",
+      gsrlimit: "24",
+      prop: "imageinfo",
+      iiprop: "url|extmetadata",
+      iiurlwidth: "640"
+    });
+    const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, {
+      headers: {
+        Accept: "application/json",
+        "Api-User-Agent": "nexGen AI Chat/1.0 (https://nexgen-ai-chat-ctkdev.vercel.app)"
+      },
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!response.ok) throw new Error(`Wikimedia Commons returned ${response.status}`);
+
+    const payload = await response.json();
+    const pages = Object.values(payload.query?.pages || {});
+    const results = pages.flatMap((page) => {
+      const image = page.imageinfo?.[0];
+      if (!image?.thumburl || !image?.descriptionurl || !image?.url) return [];
+      let thumbnailUrl;
+      let sourceUrl;
+      let originalUrl;
+      try {
+        thumbnailUrl = new URL(image.thumburl);
+        sourceUrl = new URL(image.descriptionurl);
+        originalUrl = new URL(image.url);
+      } catch {
+        return [];
+      }
+      const allowedThumbnailHosts = new Set(["thumb.wikimedia.org", "upload.wikimedia.org"]);
+      if (
+        thumbnailUrl.protocol !== "https:"
+        || !allowedThumbnailHosts.has(thumbnailUrl.hostname)
+        || sourceUrl.protocol !== "https:"
+        || sourceUrl.hostname !== "commons.wikimedia.org"
+        || originalUrl.protocol !== "https:"
+        || originalUrl.hostname !== "upload.wikimedia.org"
+      ) return [];
+
+      const metadata = image.extmetadata || {};
+      const text = (field) => cleanText(field?.value, 300)
+        .replace(/<[^>]*>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/&quot;/gi, "\"")
+        .replace(/&#39;|&apos;/gi, "'")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      return [{
+        title: cleanText(page.title, 180).replace(/^File:/i, ""),
+        thumbnail: image.thumburl,
+        imageUrl: image.url,
+        pageUrl: image.descriptionurl,
+        author: text(metadata.Artist),
+        license: text(metadata.LicenseShortName) || "See source page",
+        licenseUrl: text(metadata.LicenseUrl)
+      }];
+    }).slice(0, 18);
+
+    return json(res, 200, { query, results });
+  } catch (error) {
+    console.error("Image search failed:", error.message);
+    return json(res, 502, { error: { code: "IMAGE_SEARCH_UNAVAILABLE", message: "Image search is temporarily unavailable. Please try again." } });
   }
 });
 
@@ -449,6 +534,8 @@ app.delete("/api/conversations/:conversationId", requireAuth, async (req, res) =
 app.post("/api/conversations/:conversationId/messages", requireAuth, async (req, res) => {
   const content = cleanText(req.body?.content);
   if (!content) return json(res, 400, { error: { code: "VALIDATION_ERROR", message: "Message content is required." } });
+  const abortController = new AbortController();
+  res.on("close", () => { if (!res.writableEnded) abortController.abort(); });
   try {
     const conversation = await loadConversation(req.params.conversationId, req.user.id); if (!conversation) return json(res, 404, { error: { code: "NOT_FOUND", message: "Conversation not found." } });
     const userMessage = { id: id("message"), conversationId: conversation.id, role: "user", content, createdAt: now() };
@@ -458,13 +545,17 @@ app.post("/api/conversations/:conversationId/messages", requireAuth, async (req,
     if (pool) await pool.query("UPDATE conversations SET title = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3", [nextTitle, conversation.id, req.user.id]);
     else { conversation.title = nextTitle; conversation.updatedAt = now(); }
     const history = pool ? [...conversation.messages, userMessage] : conversation.messageIds.map((messageId) => messages.get(messageId)).filter(Boolean);
-    const sources = shouldSearchWeb(content, req.body?.webSearch === true) ? await searchWeb(content) : [];
-    const assistantMessage = { id: id("message"), conversationId: conversation.id, role: "assistant", content: await generateAssistantReply(history, sources), createdAt: now() };
+    const sources = shouldSearchWeb(content, req.body?.webSearch === true) ? await searchWeb(content, abortController.signal) : [];
+    const assistantMessage = { id: id("message"), conversationId: conversation.id, role: "assistant", content: await generateAssistantReply(history, sources, abortController.signal), createdAt: now() };
     if (pool) { await pool.query("INSERT INTO messages (id, conversation_id, role, content) VALUES ($1, $2, $3, $4)", [assistantMessage.id, assistantMessage.conversationId, assistantMessage.role, assistantMessage.content]); await pool.query("UPDATE conversations SET updated_at = NOW() WHERE id = $1", [conversation.id]); }
     else { messages.set(assistantMessage.id, assistantMessage); conversation.messageIds.push(assistantMessage.id); conversation.updatedAt = now(); }
     const updated = await loadConversation(conversation.id, req.user.id);
     return json(res, 201, { conversation: serializeConversation(updated, true) });
-  } catch (error) { console.error("AI request failed:", error.message); return json(res, 502, { error: { code: "AI_PROVIDER_ERROR", message: "nexGen could not complete that response. Try again." } }); }
+  } catch (error) {
+    if (abortController.signal.aborted || res.destroyed) return;
+    console.error("AI request failed:", error.message);
+    return json(res, 502, { error: { code: "AI_PROVIDER_ERROR", message: "nexGen could not complete that response. Try again." } });
+  }
 });
 
 app.get("/api/admin/overview", requireAuth, requireAdmin, async (_req, res) => {

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"vite\" \"node --watch server/index.js\"",
+    "dev": "vite --host 0.0.0.0",
+    "dev:full": "concurrently -k \"vite --host 0.0.0.0\" \"node --watch server/index.js\"",
     "build": "vite build",
     "start": "node server/index.js",
     "check": "vite build"
