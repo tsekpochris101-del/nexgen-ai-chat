@@ -5,13 +5,12 @@ import rehypeSanitize from "rehype-sanitize";
 import {
   ArrowUp,
   BarChart3,
+  Camera,
   Check,
   CheckCircle2,
   ChevronDown,
   Copy,
   Download,
-  FileDown,
-  Image as ImageIcon,
   Feather,
   FileText,
   GitBranch,
@@ -30,6 +29,8 @@ import {
   Sparkles,
   Square,
   Sun,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
   UserRound,
   Wrench,
@@ -43,10 +44,25 @@ const starterPrompts = [
   { icon: Sparkles, label: "Brainstorm ideas", prompt: "Brainstorm five names for a new productivity app." },
   { icon: Hash, label: "Learn something new", prompt: "Teach me one interesting fact about space, and why it matters." }
 ];
-const textFileExtensions = new Set(["txt", "md", "csv", "json", "log", "yaml", "yml", "xml"]);
-const maxTextAttachments = 3;
-const maxAttachmentCharacters = 8000;
-const maxMessageCharacters = 12000;
+
+const repeatStyleChoices = [
+  { key: "concise", label: "Keep it concise" },
+  { key: "examples", label: "Keep the examples" },
+  { key: "structured", label: "Keep the steps" },
+  { key: "plain_language", label: "Keep the simple wording" },
+  { key: "warm_tone", label: "Keep this warm tone" }
+];
+
+const adjustStyleChoices = [
+  { key: "concise", label: "Make answers shorter" },
+  { key: "detailed", label: "Add more detail" },
+  { key: "examples", label: "Add useful examples" },
+  { key: "fewer_examples", label: "Use fewer examples" },
+  { key: "structured", label: "Use steps or bullets" },
+  { key: "plain_language", label: "Use simpler wording" },
+  { key: "professional_tone", label: "Use a professional tone" },
+  { key: "casual_tone", label: "Use a more casual tone" }
+];
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -73,6 +89,13 @@ function downloadBlob(blob, filename) {
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function extractImageDescription(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^(please\s+)?(generate|create|make|draw|design|show me|give me)\s+(an?\s+)?(image|picture|photo|illustration|portrait|poster|logo|artwork)\s*(of|showing|depicting|that shows)?\s*/i, "")
+    .trim() || String(value || "").trim();
 }
 
 function pdfEscape(value) {
@@ -134,38 +157,23 @@ function buildConversationPdf(title, messages) {
   return new Blob([pdf], { type: "application/pdf" });
 }
 
+function detectRequestType(value) {
+  const text = String(value || "").toLowerCase().trim();
+  const imageRequest = /\b(generate|create|make|draw|design|show|paint|illustrate|render)\b[\s\S]{0,80}\b(image|picture|photo|illustration|portrait|poster|logo|artwork)\b|^\s*(image|picture|photo|illustration)\s+of\b/.test(text);
+  if (imageRequest) return "image";
+  const pdfRequest = /\b(create|generate|make|write|prepare|export|download|turn|convert)\b[\s\S]{0,80}\b(pdf|report|document|resume|invoice|study guide|ebook|proposal)\b|\b(pdf|report|document|resume|invoice|study guide|ebook|proposal)\b[\s\S]{0,80}\b(for|about|on|from)\b/.test(text);
+  if (pdfRequest) return "pdf";
+  return "chat";
+}
+
 function CreativeResult({ imageUrl, prompt, loading, error, onClose, onDownload }) {
   if (!imageUrl && !loading && !error) return null;
   return <section className="creative-result"><div className="creative-card"><div className="creative-heading"><div><span className="eyebrow">Free AI image</span><strong>{loading ? "Creating your image…" : error ? "Image generation needs a retry" : "Your generated image"}</strong><small>{prompt}</small></div><button className="icon-button" onClick={onClose} aria-label="Close generated image"><X size={17} /></button></div>{loading ? <div className="creative-loading"><span className="pulse-dot" /><span>Generating a free image from your prompt…</span></div> : error ? <p className="creative-error">{error}</p> : <><img className="creative-image" src={imageUrl} alt={prompt} /><div className="creative-actions"><button className="button outline-button" onClick={onDownload}><Download size={15} /> Download PNG</button><small>No watermark, logo, or signature is added.</small></div></>}</div></section>;
 }
 
-function ImageSearchResults({ query, results, loading, error, onClose }) {
-  if (!query && !loading && !error) return null;
-  return <section className="image-search-result" aria-label="Image search results">
-    <div className="creative-card">
-      <div className="creative-heading">
-        <div>
-          <span className="eyebrow">Image search · Wikimedia Commons</span>
-          <strong>{loading ? "Finding images…" : error ? "Image search needs a retry" : `Images for “${query}”`}</strong>
-          <small>Open a result to review its source and reuse license.</small>
-        </div>
-        <button className="icon-button" onClick={onClose} aria-label="Close image search results"><X size={17} /></button>
-      </div>
-      {loading ? <div className="creative-loading" role="status"><span className="pulse-dot" /><span>Searching Wikimedia Commons…</span></div>
-        : error ? <p className="creative-error" role="alert">{error}</p>
-          : results.length ? <div className="image-search-grid">{results.map((result) => <a className="image-search-item" href={result.pageUrl} target="_blank" rel="noreferrer" key={result.pageUrl}>
-            <img src={result.thumbnail} alt={result.title} loading="lazy" />
-            <span className="image-search-copy">
-              <strong>{result.title}</strong>
-              <small>{result.author ? `By ${result.author}` : "Contributor details on source page"}</small>
-              <small>{result.license}</small>
-              <span className="image-search-source">View source <span aria-hidden="true">↗</span></span>
-            </span>
-          </a>)}</div>
-            : <p className="image-search-empty">No matching images found. Try a shorter or more specific search.</p>}
-      {!loading && !error && results.length > 0 && <p className="image-search-credit">Images from Wikimedia Commons. Check each source page for attribution and license terms.</p>}
-    </div>
-  </section>;
+function PdfResult({ url, filename, onClose }) {
+  if (!url) return null;
+  return <section className="creative-result"><div className="creative-card file-result"><div className="creative-heading"><div><span className="eyebrow">Generated PDF</span><strong>Your document is ready</strong><small>{filename}</small></div><button className="icon-button" onClick={onClose} aria-label="Close generated PDF"><X size={17} /></button></div><p className="file-result-message">The AI-written content is inside this PDF. Download it again whenever you need it.</p><a className="button primary file-download" href={url} download={filename}><Download size={15} /> Download PDF</a></div></section>;
 }
 
 function Logo({ compact = false }) {
@@ -236,38 +244,10 @@ function AuthScreen({ onAuthenticated }) {
 
 function MarkdownMessage({ content }) {
   const [copied, setCopied] = useState("");
-  const [copyFailed, setCopyFailed] = useState(false);
   const copy = async (value) => {
-    try {
-      let copiedValue = false;
-      if (navigator.clipboard?.writeText) {
-        try {
-          await navigator.clipboard.writeText(value);
-          copiedValue = true;
-        } catch { /* Try the legacy browser copy path below. */ }
-      }
-      if (!copiedValue) {
-        const field = document.createElement("textarea");
-        field.value = value;
-        field.setAttribute("readonly", "");
-        field.style.position = "fixed";
-        field.style.opacity = "0";
-        document.body.appendChild(field);
-        try {
-          field.select();
-          copiedValue = document.execCommand("copy");
-        } finally {
-          field.remove();
-        }
-      }
-      if (!copiedValue) throw new Error("Clipboard is unavailable.");
-      setCopied(value);
-      setCopyFailed(false);
-    } catch {
-      setCopied("");
-      setCopyFailed(true);
-    }
-    window.setTimeout(() => { setCopied(""); setCopyFailed(false); }, 1600);
+    await navigator.clipboard?.writeText(value);
+    setCopied(value);
+    setTimeout(() => setCopied(""), 1600);
   };
   return (
     <ReactMarkdown
@@ -278,7 +258,7 @@ function MarkdownMessage({ content }) {
           const value = String(children).replace(/\n$/, "");
           const language = className?.replace("language-", "") || "text";
           if (inline) return <code className="inline-code" {...props}>{children}</code>;
-          return <div className="code-block"><div className="code-head"><span>{language}</span><button type="button" onClick={() => copy(value)} aria-label={copyFailed ? "Copy failed" : copied === value ? "Copied code" : "Copy code"}>{copyFailed ? "Copy failed" : copied === value ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}</button></div><pre><code>{value}</code></pre></div>;
+          return <div className="code-block"><div className="code-head"><span>{language}</span><button onClick={() => copy(value)}>{copied === value ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}</button></div><pre><code>{value}</code></pre></div>;
         },
         table({ children }) {
           return <div className="markdown-table"><table>{children}</table></div>;
@@ -292,8 +272,102 @@ function MarkdownMessage({ content }) {
   );
 }
 
+function ResponseFeedback({ messageId, savedKey, saving, onSave }) {
+  const [mode, setMode] = useState("");
+  const choices = mode === "repeat" ? repeatStyleChoices : adjustStyleChoices;
+  return <div className="response-feedback">
+    <span className="feedback-label">Tune future replies</span>
+    <button type="button" className={`feedback-trigger ${mode === "repeat" ? "selected" : ""}`} onClick={() => setMode((current) => current === "repeat" ? "" : "repeat")} aria-expanded={mode === "repeat"}><ThumbsUp size={13} /> Helpful</button>
+    <button type="button" className={`feedback-trigger ${mode === "adjust" ? "selected" : ""}`} onClick={() => setMode((current) => current === "adjust" ? "" : "adjust")} aria-expanded={mode === "adjust"}><ThumbsDown size={13} /> Adjust</button>
+    {mode && <div className="feedback-options" role="group" aria-label={mode === "repeat" ? "Choose what to repeat" : "Choose how to adjust future replies"}>{choices.map((choice) => <button type="button" key={choice.key} disabled={saving} className={savedKey === choice.key ? "saved" : ""} onClick={() => onSave(messageId, choice.key)}>{choice.label}</button>)}</div>}
+    {savedKey && <small className="feedback-saved" role="status">Preference saved for future replies</small>}
+  </div>;
+}
+
 function Avatar({ assistant = false, name = "" }) {
   return assistant ? <span className="avatar ai-avatar"><span /><span /><span /></span> : <span className="avatar user-avatar">{name.slice(0, 1).toUpperCase()}</span>;
+}
+
+function SettingsModal({ user, onClose, onLogout }) {
+  const [memory, setMemory] = useState({ enabled: false, preferences: [] });
+  const [preferencesText, setPreferencesText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    const closeOnEscape = (event) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  useEffect(() => {
+    api("/api/auth/memory")
+      .then(({ memory: loaded }) => {
+        setMemory(loaded);
+        setPreferencesText((loaded.preferences || []).join("\n"));
+      })
+      .catch((requestError) => setError(requestError.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggleMemory = async () => {
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const { memory: updated } = await api("/api/auth/memory", {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: !memory.enabled })
+      });
+      setMemory(updated);
+      setPreferencesText((updated.preferences || []).join("\n"));
+      setNotice(updated.enabled ? "Private personalization is on." : "Personalization is off. Saved preferences remain until you clear them.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const savePreferences = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const { memory: updated } = await api("/api/auth/memory", {
+        method: "PATCH",
+        body: JSON.stringify({ preferences: preferencesText.split(/\r?\n/).map((item) => item.trim()).filter(Boolean) })
+      });
+      setMemory(updated);
+      setPreferencesText((updated.preferences || []).join("\n"));
+      setNotice("Your response preferences were saved.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clearMemory = async () => {
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const { memory: updated } = await api("/api/auth/memory", { method: "DELETE" });
+      setMemory(updated);
+      setPreferencesText("");
+      setNotice("Learned preferences were cleared.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div className="settings-heading"><div><span className="eyebrow">Preferences</span><h2 id="settings-title">Settings</h2></div><button className="icon-button" onClick={onClose} aria-label="Close settings"><X size={18} /></button></div><div className="settings-section"><span className="settings-label">Account</span><div className="settings-account"><span className="avatar user-avatar">{user.name.slice(0, 1).toUpperCase()}</span><div><strong>{user.name}</strong><small>{user.email}</small></div></div></div><div className="settings-section"><div className="memory-heading"><div><span className="settings-label">Private personalization</span><p>Let nexGen adapt future responses to your communication preferences, such as answer length, examples, tone, and formatting.</p></div><button type="button" role="switch" aria-checked={memory.enabled} className={`memory-switch ${memory.enabled ? "enabled" : ""}`} onClick={toggleMemory} disabled={loading || saving} aria-label="Enable private personalization"><span /></button></div><small className="privacy-note">When enabled, recent user inputs may be sent to Groq to extract short response-style preferences. Only those preferences are saved separately for this account; raw messages remain in chat history, not in the memory profile. This does not train a shared model. You can review, edit, clear, or turn it off at any time.</small>{loading ? <div className="settings-loading">Loading personalization settings…</div> : <form className="memory-editor" onSubmit={savePreferences}><label htmlFor="memory-preferences">Saved response preferences <span>(one per line)</span></label><textarea id="memory-preferences" rows={4} value={preferencesText} onChange={(event) => setPreferencesText(event.target.value)} placeholder={"Prefer concise answers\nUse examples for technical explanations"} disabled={saving} /><div className="memory-actions"><button type="button" className="text-button" onClick={clearMemory} disabled={saving || !memory.preferences.length}>Clear learned preferences</button><button className="button primary small-button" disabled={saving || loading}>{saving ? "Saving…" : "Save preferences"}</button></div></form>}</div><div className="settings-section"><span className="settings-label">Privacy & data</span><div className="settings-links"><a href="/privacy">Privacy policy <ArrowUp size={13} /></a><a href="/terms">Terms of service <ArrowUp size={13} /></a><a href="/delete-account">Account deletion <ArrowUp size={13} /></a></div></div>{error && <div className="form-error settings-feedback" role="alert">{error}</div>}{notice && <div className="settings-notice" role="status">{notice}</div>}<div className="settings-actions"><button className="button outline-button" onClick={onClose}>Done</button><button className="button settings-logout" onClick={onLogout}><LogOut size={15} /> Log out</button></div></section></div>;
 }
 
 function Sidebar({ user, conversations, activeId, query, setQuery, onNew, onSelect, onDelete, onLogout, onDeleteAccount, onAdmin, onSettings, open, onClose }) {
@@ -416,95 +490,16 @@ function AdminDashboard({ onBack }) {
   </div>;
 }
 
-function Composer({ value, setValue, onSend, generating, onStop, webSearch, setWebSearch, onGenerateImage, onSearchImages, imageSearchLoading, onDownloadPdf, hasConversation }) {
+function Composer({ value, setValue, onSend, generating, onStop, webSearch, setWebSearch, attachments, onAttachFiles, onTakePicture, onRemoveAttachment }) {
   const ref = useRef(null);
-  const fileInput = useRef(null);
-  const [attachments, setAttachments] = useState([]);
-  const [attachmentError, setAttachmentError] = useState("");
+  const documentInput = useRef(null);
+  const cameraInput = useRef(null);
+  const [attachmentMenu, setAttachmentMenu] = useState(false);
   useEffect(() => { if (ref.current) { ref.current.style.height = "auto"; ref.current.style.height = Math.min(ref.current.scrollHeight, 150) + "px"; } }, [value]);
-  const attachFiles = async (event) => {
-    const files = Array.from(event.currentTarget.files || []);
-    event.currentTarget.value = "";
-    if (!files.length) return;
-
-    const errors = [];
-    const slots = Math.max(0, maxTextAttachments - attachments.length);
-    if (files.length > slots) errors.push(`You can attach up to ${maxTextAttachments} text files.`);
-    let characterCount = attachments.reduce((total, item) => total + item.content.length, 0);
-    const added = [];
-    for (const file of files.slice(0, slots)) {
-      const extension = file.name.split(".").pop()?.toLowerCase();
-      if (!textFileExtensions.has(extension)) {
-        errors.push(`${file.name} is not a supported text file.`);
-        continue;
-      }
-      if (file.size > 128 * 1024) {
-        errors.push(`${file.name} is larger than the 128 KB limit.`);
-        continue;
-      }
-      try {
-        const content = await file.text();
-        if (characterCount + content.length > maxAttachmentCharacters) {
-          errors.push(`Attached text must total no more than ${maxAttachmentCharacters.toLocaleString()} characters.`);
-          continue;
-        }
-        const id = `${file.name}:${file.lastModified}:${file.size}`;
-        if (attachments.some((item) => item.id === id) || added.some((item) => item.id === id)) continue;
-        added.push({ id, name: file.name, content });
-        characterCount += content.length;
-      } catch {
-        errors.push(`Could not read ${file.name}.`);
-      }
-    }
-    if (added.length) setAttachments((current) => [...current, ...added]);
-    setAttachmentError(errors.join(" "));
-  };
-  const submit = async (event) => {
-    event.preventDefault();
-    if (generating) return;
-    const content = [
-      value.trim(),
-      ...attachments.map(({ name, content: fileContent }) => `[Attached file: ${name}]\n${fileContent}`)
-    ].filter(Boolean).join("\n\n");
-    if (!content) return;
-    if (content.length > maxMessageCharacters) {
-      setAttachmentError(`The message and attached text must total no more than ${maxMessageCharacters.toLocaleString()} characters.`);
-      return;
-    }
-    const sent = await onSend(content);
-    if (sent) {
-      setAttachments([]);
-      setAttachmentError("");
-    } else if (value.trim()) setValue(value);
-  };
-  return <form className="composer" onSubmit={submit}>
-    <input ref={fileInput} className="file-input-hidden" type="file" multiple accept=".txt,.md,.csv,.json,.log,.yaml,.yml,.xml,text/plain,text/markdown,text/csv,application/json,application/xml" onChange={attachFiles} />
-    {attachments.length > 0 && <div className="composer-attachments" aria-label="Attached files">{attachments.map((attachment) => <span className="attachment-chip" key={attachment.id}><span>{attachment.name}</span><button type="button" onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))} aria-label={`Remove ${attachment.name}`}><X size={13} /></button></span>)}</div>}
-    {attachmentError && <p className="attachment-error" role="alert">{attachmentError}</p>}
-    <textarea ref={ref} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(e); } }} placeholder="Message nexGen…" rows={1} aria-label="Message nexGen" readOnly={generating} />
-    <div className="composer-actions"><div className="composer-left"><span>Shift + Enter for a new line</span><button type="button" className="web-toggle" onClick={onGenerateImage} disabled={generating || !value.trim()} title="Generate a free AI image from your prompt"><ImageIcon size={13} /> Image</button><button type="button" className="web-toggle image-search-toggle" onClick={onSearchImages} disabled={generating || imageSearchLoading || !value.trim()} title="Search Wikimedia Commons for images related to your prompt"><ImageIcon size={13} /> Find images</button><button type="button" className="web-toggle" onClick={onDownloadPdf} disabled={generating || !hasConversation} title="Download this conversation as a PDF"><FileDown size={13} /> PDF</button><button type="button" className={"web-toggle " + (webSearch ? "active" : "")} onClick={() => setWebSearch(!webSearch)} aria-pressed={webSearch}><Search size={13} /> Web</button></div><div><button type="button" className="icon-button composer-tool" onClick={() => fileInput.current?.click()} disabled={generating} aria-label="Attach a text file" title="Attach a text file (TXT, Markdown, CSV, JSON, LOG, YAML, or XML)"><Plus size={18} /></button>{generating ? <button type="button" className="send-button stop" onClick={onStop} aria-label="Stop generating"><Square size={16} fill="currentColor" /></button> : <button className="send-button" disabled={!value.trim() && attachments.length === 0} aria-label="Send message"><ArrowUp size={17} /></button>}</div></div>
-  </form>;
-}
-
-function SettingsDialog({ user, darkMode, onToggleTheme, onClose }) {
-  const dialogRef = useRef(null);
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  useEffect(() => {
-    const handleKeyDown = (event) => { if (event.key === "Escape") closeRef.current(); };
-    window.addEventListener("keydown", handleKeyDown);
-    dialogRef.current?.focus();
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-  return <div className="settings-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section ref={dialogRef} className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title" tabIndex={-1}>
-      <div className="settings-heading"><div><span className="eyebrow">Your workspace</span><h2 id="settings-title">Settings</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close settings"><X size={18} /></button></div>
-      <div className="settings-profile"><span className="avatar user-avatar"><UserRound size={16} /></span><div><strong>{user.name}</strong><small>{user.email}</small></div><span className="settings-role">{user.role}</span></div>
-      <div className="settings-row"><div><strong>Appearance</strong><small>Choose the theme used on this device.</small></div><button type="button" className="settings-theme-button" onClick={onToggleTheme} aria-pressed={darkMode}>{darkMode ? <Sun size={16} /> : <Moon size={16} />}<span>{darkMode ? "Dark mode" : "Light mode"}</span></button></div>
-      <div className="settings-row"><div><strong>Privacy &amp; data</strong><small>Review how your data is handled or delete your account.</small></div><nav className="settings-links" aria-label="Privacy and account links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/delete-account">Delete account</a></nav></div>
-      <div className="settings-footer"><button type="button" className="button primary small-button" onClick={onClose}>Done</button></div>
-    </section>
-  </div>;
+  const submit = (event) => { event.preventDefault(); if (!generating && (value.trim() || attachments.length)) onSend(); };
+  const chooseDocuments = (event) => { onAttachFiles(Array.from(event.target.files || [])); event.target.value = ""; setAttachmentMenu(false); };
+  const choosePicture = (event) => { onAttachFiles(Array.from(event.target.files || [])); event.target.value = ""; setAttachmentMenu(false); };
+  return <form className="composer" onSubmit={submit}><input ref={documentInput} className="hidden-file-input" type="file" accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.xlsx,.xls,image/*" multiple onChange={chooseDocuments} /><input ref={cameraInput} className="hidden-file-input" type="file" accept="image/*" capture="environment" onChange={choosePicture} /><div className="attachment-list">{attachments.map((attachment) => <div className="attachment-chip" key={attachment.id}>{attachment.preview ? <img src={attachment.preview} alt="" /> : <FileText size={14} />}<span title={attachment.file.name}>{attachment.file.name}</span><button type="button" onClick={() => onRemoveAttachment(attachment.id)} aria-label={`Remove ${attachment.file.name}`}><X size={13} /></button></div>)}</div><textarea ref={ref} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(e); } }} placeholder="Message nexGen…" rows={1} aria-label="Message nexGen" /><div className="composer-actions"><div className="composer-left"><span>Ask a question, or request an image/PDF</span><button type="button" className={"web-toggle " + (webSearch ? "active" : "")} onClick={() => setWebSearch(!webSearch)} aria-pressed={webSearch}><Search size={13} /> Web</button></div><div className="composer-right"><div className="attach-wrap"><button type="button" className="icon-button composer-tool" onClick={() => setAttachmentMenu((open) => !open)} aria-label="Attach a document or take a picture" aria-expanded={attachmentMenu}><Plus size={18} /></button>{attachmentMenu && <div className="attach-menu" role="menu"><button type="button" onClick={() => documentInput.current?.click()}><FileText size={15} /> Upload document or photo</button><button type="button" onClick={() => cameraInput.current?.click()}><Camera size={15} /> Take a picture</button></div>}</div>{generating ? <button type="button" className="send-button stop" onClick={onStop} aria-label="Stop generating"><Square size={16} fill="currentColor" /></button> : <button className="send-button" disabled={!value.trim() && !attachments.length} aria-label="Send message"><ArrowUp size={17} /></button>}</div></div></form>;
 }
 
 function App() {
@@ -524,16 +519,35 @@ function App() {
   const [imagePrompt, setImagePrompt] = useState("");
   const [imageLoading, setImageLoading] = useState(false);
   const [imageError, setImageError] = useState("");
-  const [imageSearchQuery, setImageSearchQuery] = useState("");
-  const [imageSearchResults, setImageSearchResults] = useState([]);
-  const [imageSearchLoading, setImageSearchLoading] = useState(false);
-  const [imageSearchError, setImageSearchError] = useState("");
+  const [pdfFile, setPdfFile] = useState(null);
+  const [attachments, setAttachments] = useState([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => {
-    try { return window.localStorage.getItem("nexgen-theme") === "dark"; }
-    catch { return false; }
-  });
-  const messageRequest = useRef(null);
+  const [feedbackSelections, setFeedbackSelections] = useState({});
+  const [feedbackSavingId, setFeedbackSavingId] = useState("");
+
+  const saveResponseFeedback = async (messageId, preferenceKey) => {
+    setFeedbackSavingId(messageId);
+    try {
+      await api("/api/auth/memory/feedback", {
+        method: "POST",
+        body: JSON.stringify({ messageId, preferenceKey })
+      });
+      setFeedbackSelections((current) => ({ ...current, [messageId]: preferenceKey }));
+      setToast("Preference saved for future replies.");
+      setTimeout(() => setToast(""), 2600);
+    } catch (error) {
+      if (error.message.includes("Enable Private personalization")) {
+        setSettingsOpen(true);
+        setToast("Turn on Private personalization in Settings to save this feedback.");
+        setTimeout(() => setToast(""), 4200);
+      } else {
+        setToast(error.message);
+        setTimeout(() => setToast(""), 3200);
+      }
+    } finally {
+      setFeedbackSavingId("");
+    }
+  };
 
   const loadConversations = async (search = query) => {
     const data = await api(`/api/conversations${search ? `?q=${encodeURIComponent(search)}` : ""}`);
@@ -542,14 +556,11 @@ function App() {
   };
 
   useEffect(() => { api("/api/auth/session").then((data) => setUser(data.user)).catch(() => {}).finally(() => setCheckingSession(false)); }, []);
-  useEffect(() => {
-    document.body.classList.toggle("dark", darkMode);
-    try { window.localStorage.setItem("nexgen-theme", darkMode ? "dark" : "light"); }
-    catch { /* Theme still works for this session when storage is disabled. */ }
-  }, [darkMode]);
   useEffect(() => { if (user) loadConversations(""); }, [user]);
   useEffect(() => { if (!user) return; const timer = setTimeout(() => loadConversations(query).catch(() => {}), 180); return () => clearTimeout(timer); }, [query, user]);
   useEffect(() => { const handler = (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); createConversation(); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); });
+  useEffect(() => () => { if (pdfFile?.url) URL.revokeObjectURL(pdfFile.url); }, [pdfFile]);
+  useEffect(() => () => { attachments.forEach((attachment) => { if (attachment.preview) URL.revokeObjectURL(attachment.preview); }); }, [attachments]);
 
   const createConversation = async () => {
     const latest = conversations[0];
@@ -578,85 +589,96 @@ function App() {
   };
 
   const sendMessage = async (prefilled) => {
-    const content = (prefilled ?? draft).trim();
-    if (!content || generating) return false;
-    let conversation = activeConversation;
-    let controller;
-    try {
-      if (!conversation) {
-        const data = await api("/api/conversations", { method: "POST", body: "{}" });
-        conversation = data.conversation;
-        setActiveId(conversation.id);
-        setActiveConversation(conversation);
-        setConversations((items) => [conversation, ...items]);
-      }
+    const typedContent = (prefilled ?? draft).trim();
+    const content = typedContent || "Please review the attached file(s) and help me with them.";
+    if (!content || generating) return;
+    const requestType = detectRequestType(content);
+    if (requestType === "image") {
       setDraft("");
-      controller = new AbortController();
-      messageRequest.current = controller;
       setGenerating(true);
-      const data = await api(`/api/conversations/${conversation.id}/messages`, { method: "POST", body: JSON.stringify({ content, webSearch }), signal: controller.signal });
+      try {
+        await generateImage(content);
+      } finally {
+        setGenerating(false);
+      }
+      clearAttachments();
+      return;
+    }
+    const attachmentNote = attachments.length ? `\n\nAttached file(s): ${attachments.map((attachment) => attachment.file.name).join(", ")}.` : "";
+    const messageContent = content + attachmentNote;
+    let conversation = activeConversation;
+    if (!conversation) {
+      const data = await api("/api/conversations", { method: "POST", body: "{}" });
+      conversation = data.conversation;
+      setActiveId(conversation.id);
+      setActiveConversation(conversation);
+      setConversations((items) => [conversation, ...items]);
+    }
+    setDraft("");
+    setGenerating(true);
+    try {
+      const data = await api(`/api/conversations/${conversation.id}/messages`, { method: "POST", body: JSON.stringify({ content: messageContent, webSearch, outputMode: requestType }) });
       setWebSearch(false);
       setActiveConversation(data.conversation);
       setConversations((items) => [data.conversation, ...items.filter((item) => item.id !== data.conversation.id)]);
-      return true;
-    } catch (error) {
-      if (error.name === "AbortError") {
-        if (conversation) {
-          try {
-            await new Promise((resolve) => window.setTimeout(resolve, 120));
-            const data = await api(`/api/conversations/${conversation.id}`);
-            setActiveConversation(data.conversation);
-          } catch { /* Keep the current transcript if the request was canceled before saving. */ }
-        }
-        setToast("Response stopped.");
-      } else {
-        setToast(error.message);
+      if (requestType === "pdf") {
+        const filename = safeFileName(data.conversation.title, "nexgen-document") + ".pdf";
+        const pdfBlob = buildConversationPdf(data.conversation.title, data.conversation.messages);
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        setPdfFile((previous) => {
+          if (previous?.url) URL.revokeObjectURL(previous.url);
+          return { url: pdfUrl, filename };
+        });
+        downloadBlob(pdfBlob, filename);
+        setToast("Your PDF was generated and downloaded.");
+        setTimeout(() => setToast(""), 3200);
       }
-      setTimeout(() => setToast(""), 3200);
-      return false;
-    } finally {
-      if (controller && messageRequest.current === controller) messageRequest.current = null;
-      if (controller) setGenerating(false);
-    }
-  };
-
-  const stopGeneration = () => messageRequest.current?.abort();
-
-  const searchImages = async () => {
-    const searchQuery = draft.trim();
-    if (searchQuery.length < 2) {
-      setToast("Enter at least two characters to search for images.");
-      setTimeout(() => setToast(""), 3200);
-      return;
-    }
-    setImageSearchQuery(searchQuery);
-    setImageSearchResults([]);
-    setImageSearchError("");
-    setImageSearchLoading(true);
-    closeImage();
-    try {
-      const data = await api(`/api/images/search?q=${encodeURIComponent(searchQuery)}`);
-      setImageSearchResults(data.results || []);
+      clearAttachments();
     } catch (error) {
-      setImageSearchError(error.message);
-    } finally {
-      setImageSearchLoading(false);
-    }
+      setToast(error.message);
+      setTimeout(() => setToast(""), 3200);
+    } finally { setGenerating(false); }
   };
 
-  const generateImage = () => {
-    const prompt = draft.trim();
+  const clearAttachments = () => setAttachments((current) => {
+    current.forEach((attachment) => { if (attachment.preview) URL.revokeObjectURL(attachment.preview); });
+    return [];
+  });
+
+  const addAttachments = (files) => {
+    const accepted = [];
+    files.forEach((file) => {
+      if (file.size > 15 * 1024 * 1024) {
+        setToast(`${file.name} is larger than 15 MB.`);
+        setTimeout(() => setToast(""), 3200);
+        return;
+      }
+      accepted.push({ id: `${file.name}-${file.lastModified}-${Math.random()}`, file, preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : "" });
+    });
+    if (accepted.length) setAttachments((current) => [...current, ...accepted]);
+  };
+
+  const removeAttachment = (attachmentId) => setAttachments((current) => {
+    const removed = current.find((attachment) => attachment.id === attachmentId);
+    if (removed?.preview) URL.revokeObjectURL(removed.preview);
+    return current.filter((attachment) => attachment.id !== attachmentId);
+  });
+
+  const generateImage = (requestedPrompt = draft.trim()) => {
+    const prompt = requestedPrompt.trim();
     if (!prompt) { setToast("Write an image description first."); setTimeout(() => setToast(""), 3200); return; }
-    closeImageSearch();
     setImagePrompt(prompt);
     setImageUrl("");
     setImageError("");
     setImageLoading(true);
-    const imageUrlToLoad = "https://image.pollinations.ai/prompt/" + encodeURIComponent("Create a polished, safe, high-quality image based on this description. Do not add any watermark, logo, signature, or text unless explicitly requested: " + prompt) + "?width=1024&height=1024&nologo=true&safe=true";
-    const preview = new window.Image();
-    preview.onload = () => { setImageUrl(imageUrlToLoad); setImageLoading(false); };
-    preview.onerror = () => { setImageError("The free image service did not respond. Try the same prompt again."); setImageLoading(false); };
-    preview.src = imageUrlToLoad;
+    const description = extractImageDescription(prompt);
+    const imageUrlToLoad = "https://image.pollinations.ai/prompt/" + encodeURIComponent("Match this image description exactly and follow every specified subject, action, setting, color, material, composition, mood, and style detail: " + description + ". Do not add any watermark, logo, signature, label, or generated brand text. If the description explicitly requires a watermark or brand mark, use only the exact text nexGen AI; never use another service or company name.") + "?width=1024&height=1024&nologo=true&safe=true";
+    return new Promise((resolve) => {
+      const preview = new window.Image();
+      preview.onload = () => { setImageUrl(imageUrlToLoad); setImageLoading(false); resolve(true); };
+      preview.onerror = () => { setImageError("The free image service did not respond. Try the same prompt again."); setImageLoading(false); resolve(false); };
+      preview.src = imageUrlToLoad;
+    });
   };
 
   const downloadImage = async () => {
@@ -678,17 +700,12 @@ function App() {
   };
 
   const closeImage = () => { setImageUrl(""); setImagePrompt(""); setImageLoading(false); setImageError(""); };
-  const closeImageSearch = () => { setImageSearchQuery(""); setImageSearchResults([]); setImageSearchError(""); setImageSearchLoading(false); };
+  const closePdf = () => setPdfFile((previous) => {
+    if (previous?.url) URL.revokeObjectURL(previous.url);
+    return null;
+  });
 
-  const logout = async () => {
-    try {
-      await api("/api/auth/logout", { method: "POST" });
-      setUser(null); setConversations([]); setActiveConversation(null); setActiveId(null);
-    } catch (error) {
-      setToast(error.message);
-      setTimeout(() => setToast(""), 3200);
-    }
-  };
+  const logout = async () => { await api("/api/auth/logout", { method: "POST" }); setUser(null); setConversations([]); setActiveConversation(null); setActiveId(null); };
 
   const deleteAccount = async () => {
     if (!window.confirm("Delete your nexGen account and every conversation? This cannot be undone.")) return;
@@ -704,21 +721,21 @@ function App() {
   if (!user) return <AuthScreen onAuthenticated={setUser} />;
 
   return <div className="app-shell">
-    <Sidebar user={user} conversations={conversations} activeId={activeId} query={query} setQuery={setQuery} onNew={() => { setActiveView("chat"); createConversation(); }} onSelect={(id) => { setActiveView("chat"); selectConversation(id); }} onDelete={deleteConversation} onLogout={logout} onDeleteAccount={deleteAccount} onAdmin={() => { setActiveView("admin"); setMobileOpen(false); }} onSettings={() => { setSettingsOpen(true); setMobileOpen(false); }} open={mobileOpen} onClose={() => setMobileOpen(false)} />
+    <Sidebar user={user} conversations={conversations} activeId={activeId} query={query} setQuery={setQuery} onNew={() => { setActiveView("chat"); createConversation(); }} onSelect={(id) => { setActiveView("chat"); selectConversation(id); }} onDelete={deleteConversation} onLogout={logout} onDeleteAccount={deleteAccount} onSettings={() => { setSettingsOpen(true); setMobileOpen(false); }} onAdmin={() => { setActiveView("admin"); setMobileOpen(false); }} open={mobileOpen} onClose={() => setMobileOpen(false)} />
     {mobileOpen && <button className="scrim" onClick={() => setMobileOpen(false)} aria-label="Close navigation" />}
     <main className="chat-shell">
       {activeView === "admin" ? <AdminDashboard onBack={() => setActiveView("chat")} /> : <>
-        <header className="topbar"><button type="button" className="icon-button mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><div className="mobile-logo"><Logo compact /></div><div className="conversation-heading">{activeConversation ? <><span className="eyebrow">Conversation</span><strong>{activeConversation.title}</strong></> : <><span className="eyebrow">Monday, September 07</span><strong>Good afternoon, {displayName}</strong></>}</div><div className="topbar-actions"><button type="button" className="theme-button icon-button" aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"} onClick={() => setDarkMode((current) => !current)}><Sun size={17} /><Moon size={17} /></button><button type="button" className="avatar user-avatar small" aria-label="Account settings" onClick={() => setSettingsOpen(true)}>{user.name.slice(0, 1).toUpperCase()}</button></div></header>
+        <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><div className="mobile-logo"><Logo compact /></div><div className="conversation-heading">{activeConversation ? <><span className="eyebrow">Conversation</span><strong>{activeConversation.title}</strong></> : <><span className="eyebrow">Monday, September 07</span><strong>Good afternoon, {displayName}</strong></>}</div><div className="topbar-actions"><button className="theme-button icon-button" aria-label="Toggle theme" onClick={() => document.body.classList.toggle("dark")}><Sun size={17} /><Moon size={17} /></button><button className="avatar user-avatar small" aria-label="Account">{user.name.slice(0, 1).toUpperCase()}</button></div></header>
         <section className="conversation-view">
-          {!activeConversation || activeConversation.messages?.length === 0 ? <EmptyState onPrompt={(prompt) => { setDraft(prompt); }} /> : <div className="message-list">{activeConversation.messages.map((message) => <article className={`message-row ${message.role}`} key={message.id}><Avatar assistant={message.role === "assistant"} name={user.name} /><div className="message-content"><div className="message-meta"><strong>{message.role === "assistant" ? "nexGen" : user.name}</strong><time>{new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></div>{message.role === "assistant" ? <MarkdownMessage content={message.content} /> : <p>{message.content}</p>}</div></article>)}{generating && <article className="message-row assistant"><Avatar assistant /><div className="message-content"><div className="message-meta"><strong>nexGen</strong></div><div className="thinking"><span /><span /><span /></div></div></article>}</div>}
-        <ImageSearchResults query={imageSearchQuery} results={imageSearchResults} loading={imageSearchLoading} error={imageSearchError} onClose={closeImageSearch} />
+          {!activeConversation || activeConversation.messages?.length === 0 ? <EmptyState onPrompt={(prompt) => { setDraft(prompt); }} /> : <div className="message-list">{activeConversation.messages.map((message) => <article className={`message-row ${message.role}`} key={message.id}><Avatar assistant={message.role === "assistant"} name={user.name} /><div className="message-content"><div className="message-meta"><strong>{message.role === "assistant" ? "nexGen" : user.name}</strong><time>{new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></div>{message.role === "assistant" ? <><MarkdownMessage content={message.content} /><ResponseFeedback messageId={message.id} savedKey={feedbackSelections[message.id]} saving={feedbackSavingId === message.id} onSave={saveResponseFeedback} /></> : <p>{message.content}</p>}</div></article>)}{generating && <article className="message-row assistant"><Avatar assistant /><div className="message-content"><div className="message-meta"><strong>nexGen</strong></div><div className="thinking"><span /><span /><span /></div></div></article>}</div>}
         <CreativeResult imageUrl={imageUrl} prompt={imagePrompt} loading={imageLoading} error={imageError} onClose={closeImage} onDownload={downloadImage} />
+         <PdfResult url={pdfFile?.url} filename={pdfFile?.filename} onClose={closePdf} />
         </section>
-        <div className="composer-wrap"><Composer value={draft} setValue={setDraft} onSend={sendMessage} generating={generating} onStop={stopGeneration} webSearch={webSearch} setWebSearch={setWebSearch} onGenerateImage={generateImage} onSearchImages={searchImages} imageSearchLoading={imageSearchLoading} onDownloadPdf={downloadPdf} hasConversation={Boolean(activeConversation?.messages?.length)} /><p className="disclaimer">nexGen can make mistakes. Check important information.</p></div>
+          <div className="composer-wrap"><Composer value={draft} setValue={setDraft} onSend={() => sendMessage()} generating={generating} onStop={() => setGenerating(false)} webSearch={webSearch} setWebSearch={setWebSearch} attachments={attachments} onAttachFiles={addAttachments} onTakePicture={addAttachments} onRemoveAttachment={removeAttachment} /><p className="disclaimer">nexGen can make mistakes. Check important information.</p></div>
       </>}
     </main>
-    {settingsOpen && <SettingsDialog user={user} darkMode={darkMode} onToggleTheme={() => setDarkMode((current) => !current)} onClose={() => setSettingsOpen(false)} />}
-    {toast && <div className="toast" role="alert">{toast}<button type="button" onClick={() => setToast("")} aria-label="Dismiss notification"><X size={15} /></button></div>}
+    {settingsOpen && <SettingsModal user={user} onClose={() => setSettingsOpen(false)} onLogout={() => { setSettingsOpen(false); logout(); }} />}
+    {toast && <div className="toast" role="alert">{toast}<button onClick={() => setToast("")}><X size={15} /></button></div>}
   </div>;
 }
 

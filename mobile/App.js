@@ -12,6 +12,7 @@ import {
 import { WebView } from "react-native-webview";
 
 const APP_URL = "https://nexgen-ai-chat-ctkdev.vercel.app";
+const APP_ORIGIN = new URL(APP_URL).origin;
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -47,8 +48,12 @@ export default function App() {
             setFailed(true);
           }}
           onShouldStartLoadWithRequest={(request) => {
-            if (request.url.startsWith(APP_URL)) return true;
-            Linking.openURL(request.url);
+            try {
+              if (new URL(request.url).origin === APP_ORIGIN) return true;
+            } catch {
+              // Let the WebView reject malformed URLs without crashing navigation.
+            }
+            Linking.openURL(request.url).catch(() => {});
             return false;
           }}
         />

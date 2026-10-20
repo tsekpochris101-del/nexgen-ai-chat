@@ -94,10 +94,13 @@ existing Vercel site without moving the app to another host:
 - `/icons/icon-192.png`
 - `/icons/icon-512.png`
 
-Use `com.nexgen.aichat` as the Android package name. Before uploading the
-generated AAB, replace the placeholder fingerprint in
-`public/.well-known/assetlinks.json` with the SHA-256 fingerprint shown under
-Google Play App Signing. The app's source URL remains the existing Vercel URL.
+For the Expo Android wrapper, use the package name already configured in
+`mobile/app.json`: `com.tsekpochris.nexgen`. Keep this identifier stable after
+the first Play Console upload. The `public/.well-known/assetlinks.json` file
+belongs to the optional PWABuilder/TWA packaging path; before uploading a TWA,
+replace its package name and certificate fingerprint with the values from the
+signed TWA build. The Expo WebView wrapper does not use Digital Asset Links for
+navigation.
 
 ## API shape
 
