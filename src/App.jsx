@@ -127,7 +127,7 @@ function buildConversationPdf(title, messages) {
   });
   const chunks = [];
   for (let index = 0; index < lines.length; index += 46) chunks.push(lines.slice(index, index + 46));
-  const pageRefs = chunks.map((_, index) => String(4 + index * 2) + " 0 R");
+  const pageRefs = chunks.map((_, index) => String(5 + index * 2) + " 0 R");
   const objects = [
     "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
     "2 0 obj << /Type /Pages /Kids [" + pageRefs.join(" ") + "] /Count " + chunks.length + " >> endobj",
