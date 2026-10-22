@@ -118,10 +118,10 @@ function wrapPdfText(value, width = 92) {
   });
 }
 
-function buildConversationPdf(title, messages) {
-  const lines = ["nexGen conversation", title || "Untitled conversation", new Date().toLocaleString(), ""];
+function buildConversationPdf(title, messages, documentOnly = false) {
+  const lines = documentOnly ? [""] : ["nexGen conversation", title || "Untitled conversation", new Date().toLocaleString(), ""];
   messages.forEach((message) => {
-    lines.push((message.role === "assistant" ? "nexGen" : "You") + ":");
+    if (!documentOnly) lines.push((message.role === "assistant" ? "nexGen" : "You") + ":");
     lines.push(...wrapPdfText(message.content));
     lines.push("");
   });
@@ -623,7 +623,9 @@ function App() {
       setConversations((items) => [data.conversation, ...items.filter((item) => item.id !== data.conversation.id)]);
       if (requestType === "pdf") {
         const filename = safeFileName(data.conversation.title, "nexgen-document") + ".pdf";
-        const pdfBlob = buildConversationPdf(data.conversation.title, data.conversation.messages);
+        const documentMessage = [...(data.conversation.messages || [])].reverse().find((message) => message.role === "assistant");
+        if (!documentMessage?.content?.trim()) throw new Error("The generated document had no content, so no PDF was created. Please try again.");
+        const pdfBlob = buildConversationPdf(data.conversation.title, [documentMessage], true);
         const pdfUrl = URL.createObjectURL(pdfBlob);
         setPdfFile((previous) => {
           if (previous?.url) URL.revokeObjectURL(previous.url);
